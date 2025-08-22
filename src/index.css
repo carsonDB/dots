@@ -1,0 +1,186 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+    font-weight: 400;
+    color-scheme: light;
+    color: rgba(0, 0, 0, 0.87);
+    background-color: #ffffff;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    width: 100%;
+    height: 100vh;
+    overflow-x: hidden;
+    /* Handle safe areas for devices with notches */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* PWA-specific styles */
+  @media (display-mode: standalone) {
+    body {
+      /* Additional padding for PWA standalone mode */
+      padding-top: max(env(safe-area-inset-top), 20px);
+      /* Prevent overscroll bounce on iOS PWA */
+      overscroll-behavior: none;
+    }
+
+    /* Hide scrollbars in PWA mode for cleaner look */
+    ::-webkit-scrollbar {
+      width: 0px;
+      background: transparent;
+    }
+  }
+
+  /* iOS PWA specific styles */
+  @media (display-mode: standalone) and (-webkit-touch-callout: none) {
+    body {
+      /* Prevent iOS bounce scroll */
+      position: fixed;
+      overflow: hidden;
+    }
+
+    #root {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+}
+
+@layer components {
+
+
+
+  /* Mobile-optimized touch interactions */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Enhanced mobile button feedback */
+  @media (hover: none) and (pointer: coarse) {
+    button:active {
+      background-color: rgba(0, 0, 0, 0.1);
+      transition: background-color 0.1s ease-in-out;
+    }
+  }
+
+  /* Improved focus states for mobile accessibility */
+  @media (max-width: 768px) {
+    button {
+      @apply min-w-[44px] min-h-[44px];
+    }
+  }
+
+  /* Custom animation for fadeIn */
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+
+  /* Custom animation for slideInLeft */
+  @keyframes slideInLeft {
+    from {
+      transform: translateX(-100%);
+    }
+
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slideInLeft {
+    animation: slideInLeft 0.3s ease-out;
+  }
+
+  /* Line clamp utility */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Smooth transitions for navigation state changes */
+  .navigation-transition {
+    transition: all 0.2s ease-in-out;
+  }
+
+  /* Prevent layout shift during navigation */
+  .stable-layout {
+    will-change: auto;
+    transform: translateZ(0);
+  }
+
+  /* PWA standalone mode specific styles */
+  .pwa-standalone {
+    /* Enhanced app-like appearance */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+
+
+  /* PWA navigation enhancements */
+  @media (display-mode: standalone) {
+
+    /* Custom scrollbar for better PWA experience */
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+    }
+
+    *::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    *::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    *::-webkit-scrollbar-thumb {
+      background-color: rgba(0, 0, 0, 0.2);
+      border-radius: 2px;
+    }
+
+    *::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(0, 0, 0, 0.3);
+    }
+  }
+}
