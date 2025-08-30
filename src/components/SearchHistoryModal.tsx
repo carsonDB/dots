@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { HiXMark, HiTrash, HiClock } from 'react-icons/hi2';
-import { historyService } from '../services/historyService';
+import { cacheService } from '../services/cacheService';
 import { useSetAtom } from 'jotai';
 import { performQueryAtom } from '../store/searchActions';
 
@@ -24,7 +24,7 @@ export function SearchHistoryModal({ isOpen, onClose }: SearchHistoryModalProps)
     useEffect(() => {
         if (isOpen) {
             // Load history when modal opens
-            const allHistory = historyService.getQueryHistory();
+            const allHistory = cacheService.getQueryHistory();
             // Filter to only show root queries (not expansions)
             const rootQueries = allHistory.filter(item => !item.parentId && !item.sourceSegmentId);
             setHistory(rootQueries);
@@ -41,13 +41,13 @@ export function SearchHistoryModal({ isOpen, onClose }: SearchHistoryModalProps)
     };
 
     const handleClearHistory = () => {
-        historyService.clearHistory();
+        cacheService.clearHistory();
         setHistory([]);
     };
 
     const handleDeleteItem = (itemId: string, event: React.MouseEvent) => {
         event.stopPropagation(); // Prevent triggering the query click
-        historyService.deleteHistoryItem(itemId);
+        cacheService.deleteHistoryItem(itemId);
         setHistory(prev => prev.filter(item => item.id !== itemId));
     };
 

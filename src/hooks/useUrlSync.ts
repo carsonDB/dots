@@ -1,7 +1,7 @@
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { historyService } from '../services/historyService';
+import { cacheService } from '../services/cacheService';
 import { store } from '../store/atoms';
 import { buildNavigationUrl, parseUUIDUrl } from '../utils/navigationUtils';
 
@@ -33,7 +33,7 @@ export function useUrlLoader() {
         const { queryId } = parseUUIDUrl(location.pathname);
 
         if (queryId) {
-            const queryResult = historyService.getQueryById(queryId);
+            const queryResult = cacheService.getQueryById(queryId);
             if (queryResult) {
                 // Load query state (unified concept)
                 setSearchQuery(queryResult.query);

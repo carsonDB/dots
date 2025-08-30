@@ -1,12 +1,6 @@
 import { TextSegment } from '../types';
 import AIService from './aiService';
 
-interface PreloadedSegment {
-    segmentId: string;
-    expandedSegments: TextSegment[];
-    accessOrder: number;
-}
-
 interface VisibilityState {
     visibleSegments: Set<string>;
     staticTimer: number | null;
@@ -15,9 +9,9 @@ interface VisibilityState {
 /**
  * Service for preloading segment expansions to improve user experience
  * Preloads segments that are fully visible when the list is static for seconds
+ * All caching and request deduplication is handled transparently by aiService
  */
 export class PreloadingService {
-    private cache = new Map<string, Promise<PreloadedSegment>>();
     private aiService = new AIService();
     private visibilityState: VisibilityState = {
         visibleSegments: new Set(),
@@ -26,9 +20,7 @@ export class PreloadingService {
     intersectionObserver: IntersectionObserver | null = null;
     private abortController: AbortController | null = null;
     private isInitialized = false;
-    private accessCounter = 0;
 
-    private readonly MAX_CACHE_ITEMS = 10;
     private readonly STATIC_DELAY_MS = 2000;
 
     /**
@@ -120,46 +112,22 @@ export class PreloadingService {
     }
 
     private async preloadSegment(segmentId: string, abortController: AbortController) {
-        if (this.cache.has(segmentId)) return;
-
         const segmentElement = document.querySelector(`[data-segment-id="${segmentId}"]`);
         if (!segmentElement) return;
 
         const segmentData = this.extractSegmentDataFromElement(segmentElement);
         if (!segmentData) return;
 
-        const preloadPromise = this.performPreload(segmentData, segmentId, abortController);
-        this.cache.set(segmentId, preloadPromise);
-
-        try {
-            await preloadPromise;
-        } catch (error) {
-            this.cache.delete(segmentId);
-            throw error;
-        }
-    }
-
-    private async performPreload(
-        segmentData: { segment: TextSegment; contextSegments: TextSegment[]; originalQuery: string },
-        segmentId: string,
-        abortController: AbortController
-    ): Promise<PreloadedSegment> {
-        const expandedSegments = await this.aiService.expandSegment(
+        // Simply call aiService - it handles all caching and deduplication transparently
+        await this.aiService.expandSegment(
             segmentData.segment,
             segmentData.contextSegments,
             segmentData.originalQuery,
             abortController
         );
-
-        const result: PreloadedSegment = {
-            segmentId,
-            expandedSegments,
-            accessOrder: ++this.accessCounter
-        };
-
-        await this.enforceCacheLimit();
-        return result;
     }
+
+
 
     private extractSegmentDataFromElement(element: Element): {
         segment: TextSegment;
@@ -173,46 +141,6 @@ export class PreloadingService {
             return null;
         }
     }
-
-    async getPreloadedSegments(segmentId: string): Promise<TextSegment[] | null> {
-        const cachedPromise = this.cache.get(segmentId);
-        if (!cachedPromise) return null;
-
-        try {
-            const cached = await cachedPromise;
-            cached.accessOrder = ++this.accessCounter;
-            return cached.expandedSegments;
-        } catch {
-            this.cache.delete(segmentId);
-            return null;
-        }
-    }
-
-    private async enforceCacheLimit() {
-        if (this.cache.size <= this.MAX_CACHE_ITEMS) return;
-
-        const resolvedEntries: Array<{ key: string; accessOrder: number }> = [];
-
-        for (const [key, cachedPromise] of this.cache.entries()) {
-            try {
-                const cached = await cachedPromise;
-                resolvedEntries.push({ key, accessOrder: cached.accessOrder });
-            } catch {
-                this.cache.delete(key);
-            }
-        }
-
-        resolvedEntries.sort((a, b) => a.accessOrder - b.accessOrder);
-        const itemsToRemove = resolvedEntries.length - this.MAX_CACHE_ITEMS;
-
-        if (itemsToRemove > 0) {
-            resolvedEntries.slice(0, itemsToRemove).forEach(({ key }) => {
-                this.cache.delete(key);
-            });
-        }
-    }
-
-
 
     close() {
         if (this.visibilityState.staticTimer) {
@@ -231,7 +159,6 @@ export class PreloadingService {
         }
 
         this.visibilityState.visibleSegments.clear();
-        this.cache.clear();
         this.isInitialized = false;
     }
 }

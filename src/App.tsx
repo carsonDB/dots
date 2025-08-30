@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { Provider } from 'jotai'
 import { AIExpandableSearch } from './components/AIExpandableSearch'
-import { PWAErrorBoundary } from './components/ErrorBoundary'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 function AppContent() {
     const [isInstallable, setIsInstallable] = useState(false)
@@ -54,16 +54,14 @@ function AppContent() {
     )
 }
 
-function App() {
+export default function App() {
     return (
         <Provider>
             <Router>
-                <PWAErrorBoundary>
+                <ErrorBoundary>
                     <AppContent />
-                </PWAErrorBoundary>
+                </ErrorBoundary>
             </Router>
         </Provider>
     )
 }
-
-export default App

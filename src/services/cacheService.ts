@@ -10,7 +10,7 @@ interface QueryHistoryItem {
     sourceSegmentId?: string; // For expand queries
 }
 
-class HistoryService {
+class CacheService {
     private readonly QUERY_HISTORY_KEY = 'finger_reader_query_history';
     private readonly MAX_QUERY_HISTORY = 100;
 
@@ -107,4 +107,4 @@ class HistoryService {
     }
 }
 
-export const historyService = new HistoryService();
+export const cacheService = new CacheService();

@@ -1,7 +1,7 @@
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useState } from 'react';
 import { HiChevronDoubleUp, HiChevronLeft, HiClock, HiMagnifyingGlass } from 'react-icons/hi2';
-import { historyService } from '../services/historyService';
+import { cacheService } from '../services/cacheService';
 import { currentTitleAtom, shouldShowBackArrowAtom, store } from '../store/atoms';
 import { SearchHistoryModal } from './SearchHistoryModal';
 import { SearchInterface } from './SearchInterface';
@@ -29,10 +29,10 @@ export function TopBar() {
     const handleBackNavigation = () => {
         if (segments.length > 0 && segments[0].parentId && currentQueryId) {
             // Get current query to find parent
-            const currentQuery = historyService.getQueryById(currentQueryId);
+            const currentQuery = cacheService.getQueryById(currentQueryId);
             if (currentQuery && currentQuery.parentId) {
                 // Navigate to parent segment list
-                const parentQuery = historyService.getQueryById(currentQuery.parentId);
+                const parentQuery = cacheService.getQueryById(currentQuery.parentId);
                 if (parentQuery) {
                     setSearchQuery(parentQuery.query);
                     setSegments(parentQuery.segments);

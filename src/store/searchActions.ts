@@ -1,9 +1,8 @@
 import { atom } from 'jotai';
-import { store } from './atoms';
 import AIService from '../services/aiService';
-import { historyService } from '../services/historyService';
-import { preloadingService } from '../services/preloadingService';
+import { cacheService } from '../services/cacheService';
 import { TextSegment } from '../types';
+import { store } from './atoms';
 
 import { SearchControllerImpl } from '../utils/searchController';
 
@@ -23,7 +22,7 @@ export const performQueryAtom = atom(
         const { query, sourceSegment, parentId, contextSegments = [] } = params;
 
         // Check if we already have this query in history
-        const existingQuery = historyService.findExistingQuery(
+        const existingQuery = cacheService.findExistingQuery(
             query,
             sourceSegment?.id,
             parentId
@@ -52,31 +51,21 @@ export const performQueryAtom = atom(
             let usePreloaded = false;
 
             if (sourceSegment && contextSegments.length > 0) {
-                // Check if we have preloaded segments first
-                const preloadedSegments = await preloadingService.getPreloadedSegments(sourceSegment.id);
+                // Start new query with cancellation support for network request
+                const abortController = searchController.startSearch(query);
 
-                if (preloadedSegments) {
-                    // Use preloaded segments - no loading state needed
-                    newSegments = preloadedSegments;
-                    usePreloaded = true;
-                    console.log('Using preloaded segments for:', sourceSegment.title);
-                } else {
-                    // Start new query with cancellation support for network request
-                    const abortController = searchController.startSearch(query);
+                // Set loading states
+                set(store.expandingSegmentIdAtom, sourceSegment.id);
+                set(store.isSearchingAtom, true);
+                set(store.searchControllerAtom, abortController);
 
-                    // Set loading states
-                    set(store.expandingSegmentIdAtom, sourceSegment.id);
-                    set(store.isSearchingAtom, true);
-                    set(store.searchControllerAtom, abortController);
-
-                    // Use expand logic for segment-based queries
-                    newSegments = await aiService.expandSegment(
-                        sourceSegment,
-                        contextSegments,
-                        query,
-                        abortController
-                    );
-                }
+                // Use expand logic for segment-based queries
+                newSegments = await aiService.expandSegment(
+                    sourceSegment,
+                    contextSegments,
+                    query,
+                    abortController
+                );
             } else {
                 // Start new query with cancellation support for root queries
                 const abortController = searchController.startSearch(query);
@@ -93,7 +82,7 @@ export const performQueryAtom = atom(
             }
 
             // Save to unified history
-            const queryId = historyService.saveQueryResult(
+            const queryId = cacheService.saveQueryResult(
                 query,
                 newSegments,
                 parentId,

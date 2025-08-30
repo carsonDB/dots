@@ -69,7 +69,7 @@ export function AIExpandableSearch() {
             const contextSegments = segments;
 
             await performQuery({
-                query: segment.title,
+                query: searchQuery,
                 sourceSegment: segment,
                 parentId: currentSearchId || undefined,
                 contextSegments: contextSegments
