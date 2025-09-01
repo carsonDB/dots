@@ -100,6 +100,20 @@ class CacheService {
     }
 
     /**
+     * Get all cached segments from all queries
+     */
+    getAllCachedSegments(): TextSegment[] {
+        const history = this.getQueryHistory();
+        const allSegments: TextSegment[] = [];
+        
+        history.forEach(item => {
+            allSegments.push(...item.segments);
+        });
+        
+        return allSegments;
+    }
+
+    /**
      * Clear all history
      */
     clearHistory(): void {

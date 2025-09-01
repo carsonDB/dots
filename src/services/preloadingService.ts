@@ -103,7 +103,7 @@ export class PreloadingService {
         await Promise.all(visibleSegmentIds.map(async segmentId => {
             try {
                 await this.preloadSegment(segmentId, abortController);
-                console.log(`Succeeded to preload segment ${segmentId}`);
+                // console.log(`Succeeded to preload segment ${segmentId}`);
             } catch (error) {
                 if (error instanceof Error && error.name === 'AbortError') return;
                 console.warn(`Failed to preload segment ${segmentId}:`, error);
@@ -121,7 +121,6 @@ export class PreloadingService {
         // Simply call aiService - it handles all caching and deduplication transparently
         await this.aiService.expandSegment(
             segmentData.segment,
-            segmentData.contextSegments,
             segmentData.originalQuery,
             abortController
         );
@@ -131,7 +130,6 @@ export class PreloadingService {
 
     private extractSegmentDataFromElement(element: Element): {
         segment: TextSegment;
-        contextSegments: TextSegment[];
         originalQuery: string;
     } | null {
         try {

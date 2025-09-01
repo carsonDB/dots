@@ -2,9 +2,6 @@
  * Core data models and interfaces for finger reader
  */
 
-// Export context types
-export type { SegmentContext, ContextualPrompt, ContextConfig } from './context';
-
 /**
  * Represents a text segment that can be expanded for more detail
  */

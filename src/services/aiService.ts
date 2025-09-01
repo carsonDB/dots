@@ -1,5 +1,5 @@
 import type { TextSegment } from '../types';
-import { ContextBuilder, defaultContextBuilder } from '../utils/contextBuilder';
+import { createContextualPrompt } from '../utils/contextBuilder';
 import { createTextSegment } from '../utils/segmentUtils';
 import { cacheService } from './cacheService';
 
@@ -21,7 +21,6 @@ interface OpenRouterResponse {
 // AI Configuration
 const AI_CONFIG = {
     API_KEY: import.meta.env.VITE_OPENROUTER_API_KEY || '',
-    // MODEL: 'deepseek/deepseek-chat-v3-0324:free',
     MODEL: 'google/gemini-2.0-flash-001',
     BASE_URL: 'https://openrouter.ai/api/v1/chat/completions',
     DEFAULT_TEMPERATURE: 0.7,
@@ -32,15 +31,13 @@ class AIService {
     private apiKey: string;
     private baseUrl = AI_CONFIG.BASE_URL;
     private model = AI_CONFIG.MODEL;
-    private contextBuilder: ContextBuilder;
     maxWords = 50;
 
     // Unified request deduplication and caching
     private pendingRequests = new Map<string, Promise<TextSegment[]>>();
 
-    constructor(contextBuilder?: ContextBuilder) {
+    constructor() {
         this.apiKey = AI_CONFIG.API_KEY;
-        this.contextBuilder = contextBuilder || defaultContextBuilder;
     }
 
     async sendMessage(messages: ChatMessage[], abortController?: AbortController): Promise<string> {
@@ -51,7 +48,7 @@ class AIService {
                     'Authorization': `Bearer ${this.apiKey}`,
                     'Content-Type': 'application/json',
                     'HTTP-Referer': window.location.origin,
-                    'X-Title': 'Finger Reader PWA'
+                    'X-Title': 'Dots PWA'
                 },
                 body: JSON.stringify({
                     model: this.model,
@@ -78,8 +75,6 @@ class AIService {
         }
     }
 
-
-
     /**
      * Generates structured text segments for a search query
      * @param query - The user's search query
@@ -88,7 +83,7 @@ class AIService {
      */
     async generateSegments(query: string, abortController?: AbortController): Promise<TextSegment[]> {
         const cacheKey = this.createSearchCacheKey(query);
-        
+
         return this.executeWithCache(
             cacheKey,
             () => this.performSearch(query, abortController),
@@ -99,27 +94,24 @@ class AIService {
     /**
      * Expands a text segment to provide more detailed sub-segments
      * @param segment - The segment to expand
-     * @param allSegments - All segments in current state for context building
      * @param originalQuery - The original search query for context
      * @param abortController - Optional AbortController for cancellation
      * @returns Promise<TextSegment[]> - Array of child segments
      */
     async expandSegment(
-        segment: TextSegment, 
-        allSegments: TextSegment[] = [], 
+        segment: TextSegment,
         originalQuery: string = '',
         abortController?: AbortController
     ): Promise<TextSegment[]> {
         const cacheKey = this.createExpansionCacheKey(segment, originalQuery);
-        console.log({cacheKey})
-        
+
         return this.executeWithCache(
             cacheKey,
-            () => this.performExpansion(segment, allSegments, originalQuery, abortController),
-            { 
-                query: cacheKey, 
-                parentId: segment.parentId || undefined, 
-                sourceSegmentId: segment.id 
+            () => this.performExpansion(segment, originalQuery, abortController),
+            {
+                query: cacheKey,
+                parentId: segment.parentId || undefined,
+                sourceSegmentId: segment.id
             },
         );
     }
@@ -182,7 +174,7 @@ class AIService {
     ): Promise<TextSegment[]> {
         try {
             const segments = await requestFn();
-            
+
             // Save to localStorage cache
             cacheService.saveQueryResult(
                 cacheParams.query,
@@ -190,7 +182,7 @@ class AIService {
                 cacheParams.parentId,
                 cacheParams.sourceSegmentId
             );
-            
+
             return segments;
         } catch (error) {
             // Handle abort errors specifically
@@ -205,14 +197,14 @@ class AIService {
      * Creates a unique cache key for search queries
      */
     private createSearchCacheKey(query: string): string {
-        return `search:${query.toLowerCase().trim()}`;
+        return query.toLowerCase().trim();
     }
 
     /**
      * Creates a unique cache key for segment expansion
      */
     private createExpansionCacheKey(segment: TextSegment, originalQuery: string): string {
-        return `expand:${segment.title}:${segment.content}:${originalQuery}`;
+        return `${segment.title}:${segment.content}:${originalQuery}`;
     }
 
     /**
@@ -240,11 +232,10 @@ class AIService {
      */
     private async performExpansion(
         segment: TextSegment,
-        allSegments: TextSegment[],
         originalQuery: string,
         abortController?: AbortController
     ): Promise<TextSegment[]> {
-        const prompt = this.createContextualExpansionPrompt(segment, allSegments, originalQuery);
+        const prompt = this.createContextualExpansionPrompt(segment, originalQuery);
 
         const messages: ChatMessage[] = [
             {
@@ -282,7 +273,7 @@ Respond in JSON format:
     }
 
     /**
-     * Creates the prompt template for segment expansion (legacy method)
+     * Creates the prompt template for simple segment expansion
      * @param segment - The segment to expand
      * @returns string - Formatted prompt
      */
@@ -305,13 +296,11 @@ Respond in JSON format:
     /**
      * Creates a contextual expansion prompt with hierarchical awareness
      * @param segment - The segment to expand
-     * @param allSegments - All segments for context building
      * @param originalQuery - Original search query
      * @returns string - Contextual prompt
      */
     private createContextualExpansionPrompt(
-        segment: TextSegment, 
-        allSegments: TextSegment[], 
+        segment: TextSegment,
         originalQuery: string
     ): string {
         // For level 0 (initial search results), use simple expansion
@@ -319,31 +308,11 @@ Respond in JSON format:
             return this.createExpansionPrompt(segment);
         }
 
-        // Build contextual information for deeper levels
-        const context = this.contextBuilder.buildSegmentContext(segment, allSegments, originalQuery);
-        const contextualPrompt = this.contextBuilder.createContextualPrompt(segment, context);
+        // Get all cached segments for context building
+        const allCachedSegments = cacheService.getAllCachedSegments();
+        const contextualPrompt = createContextualPrompt(segment, allCachedSegments, originalQuery);
 
-        let prompt = `${contextualPrompt.basePrompt}
-
-CONTEXT: ${contextualPrompt.contextualInformation}
-
-EXPLORATION PATH: ${contextualPrompt.hierarchyPath}
-
-Please provide 3-5 sub-points that build naturally on this exploration path. Make sure your explanations are relevant to the context above and help the user dive deeper into this specific aspect of "${originalQuery}".
-
-Respond in JSON format:
-\`\`\`json
-{
-  "list": [
-    {
-      "title": "Sub-point Title",
-      "content": "Clear explanation with examples (max 50 words)"
-    }
-  ]
-}
-\`\`\``;
-
-        return prompt;
+        return contextualPrompt.prompt;
     }
 
     /**
@@ -358,6 +327,7 @@ Respond in JSON format:
     private async requestWithRetry(messages: ChatMessage[], level: number, parentId: string | null = null, attempt: number = 0, abortController?: AbortController): Promise<TextSegment[]> {
         try {
             const response = await this.sendMessage(messages, abortController);
+            // console.log(messages, response)
             return this.parseSegmentsFromResponse(response, level, parentId);
         } catch (error) {
             // Don't retry if the request was aborted
@@ -365,7 +335,7 @@ Respond in JSON format:
                 console.warn(error);
                 return []
             }
-            
+
             if (attempt < 2) { // Max 3 attempts (0, 1, 2)
                 console.warn(`JSON parsing failed on attempt ${attempt + 1}, retrying...`);
 

@@ -59,7 +59,7 @@
   - _Requirements: 2.1, 2.4, 3.3, 3.4, 4.1, 4.2, 4.3, 5.3_
 
 - [x] 8. Update main App component
-  - Replace existing finger-reader content with AIExpandableSearch component
+  - Replace existing dots content with AIExpandableSearch component
   - Maintain PWA functionality and existing app structure
   - Update app title and metadata to reflect new functionality
   - Ensure responsive design works on mobile devices

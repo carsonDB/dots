@@ -26,8 +26,8 @@ export default defineConfig({
         ]
       },
       manifest: {
-        name: 'Finger Reader',
-        short_name: 'FingerReader',
+        name: 'Dots',
+        short_name: 'Dots',
         description: 'AI-powered search with expandable text segments for deep topic exploration',
         theme_color: '#4F46E5',
         background_color: '#ffffff',
@@ -46,24 +46,24 @@ export default defineConfig({
             url: '/?action=search',
             icons: [
               {
-                src: 'icon.svg',
+                src: 'dots_logo.png',
                 sizes: 'any',
-                type: 'image/svg+xml'
+                type: 'image/png'
               }
             ]
           }
         ],
         icons: [
           {
-            src: 'icon.svg',
+            src: 'dots_logo.png',
             sizes: 'any',
-            type: 'image/svg+xml',
+            type: 'image/png',
             purpose: 'any maskable'
           },
           {
-            src: 'favicon.svg',
+            src: 'dots_logo.png',
             sizes: '16x16',
-            type: 'image/svg+xml'
+            type: 'image/png'
           }
         ]
       },

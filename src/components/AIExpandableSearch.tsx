@@ -64,21 +64,16 @@ export function AIExpandableSearch() {
      */
     const handleSegmentExpand = useCallback(async (segment: TextSegmentType) => {
         try {
-            // For context, we'll use current segments since deeper context 
-            // should be collected by each segment's parentId relationship
-            const contextSegments = segments;
-
             await performQuery({
                 query: searchQuery,
                 sourceSegment: segment,
-                parentId: currentSearchId || undefined,
-                contextSegments: contextSegments
+                parentId: currentSearchId || undefined
             });
             handleScrollToTop(0);
         } catch (err) {
             console.error('Segment expansion failed:', err);
         }
-    }, [performQuery, currentSearchId, segments]);
+    }, [performQuery, currentSearchId, searchQuery]);
 
     const handleScrollToTop = useCallback((offset: number) => {
         segmentsContainerRef.current?.scrollTo({ top: offset, behavior: 'smooth' });
@@ -98,7 +93,6 @@ export function AIExpandableSearch() {
                             segment={segment}
                             onClick={() => handleSegmentExpand(segment)}
                             isLoading={expandingSegmentId === segment.id}
-                            contextSegments={segments}
                             originalQuery={searchQuery}
                         />
                     ))}

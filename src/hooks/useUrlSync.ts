@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { cacheService } from '../services/cacheService';
 import { store } from '../store/atoms';
-import { buildNavigationUrl, parseUUIDUrl } from '../utils/navigationUtils';
 
 /**
  * Hook to sync Jotai state with URL parameters
@@ -99,4 +98,36 @@ export function useUrlLoader() {
     }, [currentQueryId, segments.length, navigate, location.pathname]);
 
     return loadFromUrl
+}
+
+
+/**
+ * Builds URL with unified query-based navigation
+ */
+function buildNavigationUrl(
+    baseUrl: string,
+    queryId?: string
+): string {
+    const url = new URL(baseUrl, window.location.origin);
+
+    if (queryId) {
+        url.pathname = `/q/${queryId}`;
+    } else {
+        url.pathname = '/';
+    }
+
+    return url.pathname;
+}
+
+/**
+ * Parses unified URL to extract query ID
+ */
+function parseUUIDUrl(pathname: string): { queryId?: string } {
+    // Unified format
+    const queryMatch = pathname.match(/^\/q\/([a-f0-9-]{36})$/);
+    if (queryMatch) {
+        return { queryId: queryMatch[1] };
+    }
+
+    return {};
 }

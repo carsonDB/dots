@@ -1,6 +1,6 @@
 {
-  "name": "Finger Reader",
-  "short_name": "FingerReader",
+  "name": "Dots",
+  "short_name": "Dots",
   "description": "AI-powered search with expandable text segments for deep topic exploration",
   "start_url": "/?utm_source=pwa",
   "display": "standalone",
@@ -9,22 +9,28 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/dots_logo.png",
       "sizes": "any",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/favicon.svg",
+      "src": "/dots_logo.png",
       "sizes": "any",
-      "type": "image/svg+xml"
+      "type": "image/png"
     }
   ],
-  "categories": ["productivity", "utilities"],
+  "categories": [
+    "productivity",
+    "utilities"
+  ],
   "lang": "en",
   "scope": "/",
   "prefer_related_applications": false,
-  "display_override": ["window-controls-overlay", "standalone"],
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "launch_handler": {
     "client_mode": "navigate-existing"
   },
@@ -39,9 +45,9 @@
       "url": "/?action=search",
       "icons": [
         {
-          "src": "/icon.svg",
+          "src": "/dots_logo.png",
           "sizes": "any",
-          "type": "image/svg+xml"
+          "type": "image/png"
         }
       ]
     }

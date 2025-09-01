@@ -10,13 +10,11 @@ interface TextSegmentProps {
     onClick: () => void;
     /** Whether this segment is currently being expanded */
     isLoading: boolean;
-    /** Context segments for preloading */
-    contextSegments?: TextSegmentType[];
     /** Original query for preloading */
     originalQuery?: string;
 }
 
-export function TextSegment({ segment, onClick, isLoading, contextSegments = [], originalQuery = '' }: TextSegmentProps) {
+export function TextSegment({ segment, onClick, isLoading, originalQuery = '' }: TextSegmentProps) {
     const elementRef = useRef<HTMLDivElement>(null);
 
     // Set up intersection observer for preloading
@@ -28,7 +26,6 @@ export function TextSegment({ segment, onClick, isLoading, contextSegments = [],
         element.setAttribute('data-segment-id', segment.id);
         element.setAttribute('data-segment-data', JSON.stringify({
             segment,
-            contextSegments,
             originalQuery
         }));
 
@@ -38,7 +35,7 @@ export function TextSegment({ segment, onClick, isLoading, contextSegments = [],
         return () => {
             preloadingService.intersectionObserver?.unobserve(element);
         };
-    }, [segment, contextSegments, originalQuery]);
+    }, [segment, originalQuery]);
 
     const handleClick = () => {
         if (!isLoading) {

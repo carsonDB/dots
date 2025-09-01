@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AI Expandable Search application transforms the existing finger-reader PWA into an intelligent search interface that provides hierarchical text exploration. Users can search for topics and progressively drill down into more detailed information through clickable text segments.
+The AI Expandable Search application transforms the existing dots PWA into an intelligent search interface that provides hierarchical text exploration. Users can search for topics and progressively drill down into more detailed information through clickable text segments.
 
 ## Architecture
 

@@ -4,11 +4,11 @@ import { cacheService } from '../services/cacheService';
 import { TextSegment } from '../types';
 import { store } from './atoms';
 
-import { SearchControllerImpl } from '../utils/searchController';
+import { SearchController } from '../utils/searchController';
 
 // Create singleton instances
 const aiService = new AIService();
-const searchController = new SearchControllerImpl();
+const searchController = new SearchController();
 
 // Main query action atom - handles both search and segment expansion
 export const performQueryAtom = atom(
@@ -17,9 +17,8 @@ export const performQueryAtom = atom(
         query: string;
         sourceSegment?: TextSegment;
         parentId?: string;
-        contextSegments?: TextSegment[];
     }) => {
-        const { query, sourceSegment, parentId, contextSegments = [] } = params;
+        const { query, sourceSegment, parentId } = params;
 
         // Check if we already have this query in history
         const existingQuery = cacheService.findExistingQuery(
@@ -50,7 +49,7 @@ export const performQueryAtom = atom(
             let newSegments: TextSegment[];
             let usePreloaded = false;
 
-            if (sourceSegment && contextSegments.length > 0) {
+            if (sourceSegment) {
                 // Start new query with cancellation support for network request
                 const abortController = searchController.startSearch(query);
 
@@ -62,7 +61,6 @@ export const performQueryAtom = atom(
                 // Use expand logic for segment-based queries
                 newSegments = await aiService.expandSegment(
                     sourceSegment,
-                    contextSegments,
                     query,
                     abortController
                 );
