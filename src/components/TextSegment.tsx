@@ -72,7 +72,7 @@ export function TextSegment({ segment, onClick, isLoading, originalQuery = '' }:
                 aria-disabled={isLoading}
             >
                 <div className="flex-1 mr-2 text-left break-words md:mr-2 sm:mr-1.5">
-                    <div className={`text-gray-800 text-lg font-semibold leading-snug mb-1 ${segment.level === 0 ? 'font-medium' : segment.level === 1 ? 'font-normal' : 'font-normal opacity-90'
+                    <div className={`text-gray-800 text-lg font-semibold leading-snug mb-1 font-medium'
                         } md:text-base sm:text-sm`}>
                         {segment.title}
                     </div>

@@ -1,5 +1,5 @@
 /**
- * Core data models and interfaces for finger reader
+ * Core data models and interfaces for dots
  */
 
 /**
@@ -12,14 +12,8 @@ export interface TextSegment {
   title: string;
   /** The paragraph content of the segment (max 50 words) */
   content: string;
-  /** Hierarchical level (0 = root, 1 = first expansion, etc.) */
-  level: number;
   /** ID of the parent segment (null for root segments) */
   parentId: string | null;
-  /** Whether this segment has been expanded */
-  isExpanded: boolean;
-  /** Child segments if this segment has been expanded */
-  children?: TextSegment[];
 }
 
 /**

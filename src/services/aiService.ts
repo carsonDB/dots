@@ -1,6 +1,6 @@
+import { v4 as uuid } from 'uuid'
 import type { TextSegment } from '../types';
-import { createContextualPrompt } from '../utils/contextBuilder';
-import { createTextSegment } from '../utils/segmentUtils';
+import { createContextualInfo } from '../utils/contextBuilder';
 import { cacheService } from './cacheService';
 
 
@@ -17,6 +17,7 @@ interface OpenRouterResponse {
         };
     }>;
 }
+
 
 // AI Configuration
 const AI_CONFIG = {
@@ -75,117 +76,85 @@ class AIService {
         }
     }
 
-    /**
-     * Generates structured text segments for a search query
-     * @param query - The user's search query
-     * @param abortController - Optional AbortController for cancellation
-     * @returns Promise<TextSegment[]> - Array of text segments
-     */
     async generateSegments(query: string, abortController?: AbortController): Promise<TextSegment[]> {
-        const cacheKey = this.createSearchCacheKey(query);
-
-        return this.executeWithCache(
-            cacheKey,
-            () => this.performSearch(query, abortController),
-            { query, parentId: undefined, sourceSegmentId: undefined },
-        );
-    }
-
-    /**
-     * Expands a text segment to provide more detailed sub-segments
-     * @param segment - The segment to expand
-     * @param originalQuery - The original search query for context
-     * @param abortController - Optional AbortController for cancellation
-     * @returns Promise<TextSegment[]> - Array of child segments
-     */
-    async expandSegment(
-        segment: TextSegment,
-        originalQuery: string = '',
-        abortController?: AbortController
-    ): Promise<TextSegment[]> {
-        const cacheKey = this.createExpansionCacheKey(segment, originalQuery);
-
-        return this.executeWithCache(
-            cacheKey,
-            () => this.performExpansion(segment, originalQuery, abortController),
-            {
-                query: cacheKey,
-                parentId: segment.parentId || undefined,
-                sourceSegmentId: segment.id
-            },
-        );
-    }
-
-    /**
-     * Unified cache execution with request deduplication
-     * Handles memory cache, pending requests, and localStorage persistence
-     */
-    private async executeWithCache<T extends TextSegment[]>(
-        cacheKey: string,
-        requestFn: () => Promise<T>,
-        cacheParams: { query: string; parentId?: string; sourceSegmentId?: string },
-    ): Promise<T> {
-        // 1. Check localStorage cache first
-        const existingResult = cacheService.findExistingQuery(
-            cacheParams.query,
-            cacheParams.sourceSegmentId,
-            cacheParams.parentId
-        );
-        if (existingResult) {
-            return existingResult.segments as T;
+        const cacheKey = query.toLowerCase().trim();
+        const performSearch = async (query: string, abortController?: AbortController): Promise<TextSegment[]> => {
+            const command = `Explain '{QUERY}' for learners. Provide 3-6 key points with clear titles and simple explanations.`;
+            const variables = { QUERY: query };
+            const messages = this.createPromptMessage(command, variables);
+            return this.requestWithRetry(messages, null, 0, abortController);
         }
+        return this.executeWithCache(cacheKey, () => performSearch(query, abortController), { query });
+    }
 
-        // 2. Check if request is already pending
+    async expandSegment(segment: TextSegment, originalQuery: string = '', abortController?: AbortController): Promise<TextSegment[]> {
+        const cacheKey = `${segment.title}:${originalQuery}`;
+        const performExpansion = async(segment: TextSegment, originalQuery: string, abortController?: AbortController): Promise<TextSegment[]> => {
+            const allCachedSegments = cacheService.getAllCachedSegments();
+            const contextualInfo = createContextualInfo(segment, allCachedSegments, originalQuery);
+    
+            const command = `Expand on: '{TITLE}' - '{CONTENT}'. Provide 3-5 sub-points that build naturally on this exploration path. Make sure your explanations are relevant to the context below and help the user dive deeper into this specific aspect.`;
+            const variables = {
+                CONTEXT: contextualInfo,
+                TITLE: segment.title,
+                CONTENT: segment.content,
+            };
+            const messages = this.createPromptMessage(command, variables);
+            return this.requestWithRetry(messages, segment.id, 0, abortController);
+        }
+        return this.executeWithCache(cacheKey, () => performExpansion(segment, originalQuery, abortController), {
+            query: cacheKey,
+            parentId: segment.parentId || undefined,
+            sourceSegmentId: segment.id
+        });
+    }
+
+    async extendMoreSegments(query: string, currentSegments: TextSegment[], abortController?: AbortController): Promise<TextSegment[]> {
+        const cacheKey = `${query.toLowerCase().trim()}_more_${currentSegments.length}`;
+        const performMoreSearch = async(query: string, currentSegments: TextSegment[], abortController?: AbortController): Promise<TextSegment[]> => {
+            const command = `Continue exploring '{QUERY}' for learners. You've already provided {CURRENT_TITLES}. Now provide 3-5 additional different aspects or related topics. Focus on practical applications, advanced concepts, or related areas that haven't been covered yet. If you cannot provide meaningful additional content, return an empty list.`;
+            const variables = { QUERY: query, CURRENT_TITLES: currentSegments.map(seg => seg.title) };
+            const messages = this.createPromptMessage(command, variables);
+            return this.requestWithRetry(messages, null, 0, abortController);
+        }
+        return this.executeWithCache(cacheKey, () => performMoreSearch(query, currentSegments, abortController), { query: cacheKey });
+    }
+
+    private async executeWithCache<T extends TextSegment[]>(cacheKey: string, requestFn: () => Promise<T>, cacheParams: { query: string; parentId?: string; sourceSegmentId?: string }): Promise<T> {
+        // Check localStorage cache first
+        const existingResult = cacheService.findExistingQuery(cacheParams.query, cacheParams.sourceSegmentId, cacheParams.parentId);
+        if (existingResult) return existingResult.segments as T;
+
+        // Check if request is already pending
         const pendingRequest = this.pendingRequests.get(cacheKey);
         if (pendingRequest) {
             try {
                 return await pendingRequest as T;
             } catch (error) {
-                // If pending request failed, remove it and continue with new request
                 this.pendingRequests.delete(cacheKey);
-                if (error instanceof Error && error.name === 'AbortError') {
-                    throw error;
-                }
+                if (error instanceof Error && error.name === 'AbortError') throw error;
             }
         }
 
-        // 3. Create new request and cache the promise
+        // Create new request and cache the promise
         const requestPromise = this.executeRequest(requestFn, cacheParams);
         this.pendingRequests.set(cacheKey, requestPromise);
 
         try {
-            const result = await requestPromise;
-            return result as T;
+            return await requestPromise as T;
         } catch (error) {
-            this.pendingRequests.delete(cacheKey);
             throw error;
         } finally {
-            // Clean up completed request
             this.pendingRequests.delete(cacheKey);
         }
     }
 
-    /**
-     * Execute the actual request and handle caching
-     */
-    private async executeRequest(
-        requestFn: () => Promise<TextSegment[]>,
-        cacheParams: { query: string; parentId?: string; sourceSegmentId?: string },
-    ): Promise<TextSegment[]> {
+    private async executeRequest(requestFn: () => Promise<TextSegment[]>, cacheParams: { query: string; parentId?: string; sourceSegmentId?: string }): Promise<TextSegment[]> {
         try {
             const segments = await requestFn();
-
-            // Save to localStorage cache
-            cacheService.saveQueryResult(
-                cacheParams.query,
-                segments,
-                cacheParams.parentId,
-                cacheParams.sourceSegmentId
-            );
-
+            cacheService.saveQueryResult(cacheParams.query, segments, cacheParams.parentId, cacheParams.sourceSegmentId);
             return segments;
         } catch (error) {
-            // Handle abort errors specifically
             if (error instanceof Error && error.name === 'AbortError') {
                 throw new Error('Search was cancelled');
             }
@@ -194,141 +163,38 @@ class AIService {
     }
 
     /**
-     * Creates a unique cache key for search queries
+     * Gets the unified system message for all AI requests
      */
-    private createSearchCacheKey(query: string): string {
-        return query.toLowerCase().trim();
-    }
-
-    /**
-     * Creates a unique cache key for segment expansion
-     */
-    private createExpansionCacheKey(segment: TextSegment, originalQuery: string): string {
-        return `${segment.title}:${segment.content}:${originalQuery}`;
-    }
-
-    /**
-     * Performs the actual search request
-     */
-    private async performSearch(query: string, abortController?: AbortController): Promise<TextSegment[]> {
-        const prompt = this.createInitialSearchPrompt(query);
-
-        const messages: ChatMessage[] = [
-            {
-                role: 'system',
-                content: `You are an educational assistant. Use simple language, include examples when helpful, and always respond in JSON format. Match the user's language. Use English by default.`
-            },
-            {
-                role: 'user',
-                content: prompt
-            }
-        ];
-
-        return this.requestWithRetry(messages, 0, null, 0, abortController);
-    }
-
-    /**
-     * Performs the actual expansion request
-     */
-    private async performExpansion(
-        segment: TextSegment,
-        originalQuery: string,
-        abortController?: AbortController
-    ): Promise<TextSegment[]> {
-        const prompt = this.createContextualExpansionPrompt(segment, originalQuery);
-
-        const messages: ChatMessage[] = [
-            {
-                role: 'system',
-                content: `You are an educational assistant. Use simple language, include examples when helpful, and always respond in JSON format. Match the user's language. Use English by default. Use the provided context to make your explanations more relevant and coherent with the exploration path.`
-            },
-            {
-                role: 'user',
-                content: prompt
-            }
-        ];
-
-        return this.requestWithRetry(messages, segment.level + 1, segment.id, 0, abortController);
-    }
-
-    /**
-     * Creates the prompt template for initial search queries
-     * @param query - The user's search query
-     * @returns string - Formatted prompt
-     */
-    private createInitialSearchPrompt(query: string): string {
-        return `Explain '${query}' for learners. Provide 3-6 key points with clear titles and simple explanations (max 50 words each). Use examples and everyday language.
+    private getSystemMessage(): string {
+        return `You are an educational assistant. Always follow these requirements:
+- Use simple language and include examples when helpful
+- Match the user's language. Use English by default
 
 Respond in JSON format:
 \`\`\`json
 {
   "list": [
     {
-      "title": "Point Title",
-      "content": "Simple explanation with examples (max 50 words)"
+      "title": string,
+      "content": string (max ${this.maxWords} words)
     }
   ]
 }
 \`\`\``;
     }
 
-    /**
-     * Creates the prompt template for simple segment expansion
-     * @param segment - The segment to expand
-     * @returns string - Formatted prompt
-     */
-    private createExpansionPrompt(segment: TextSegment): string {
-        return `Expand on: '${segment.title}' - '${segment.content}'. Provide 3-5 sub-points with simple explanations (max 50 words each). Use examples and step-by-step details.
-
-Respond in JSON format:
-\`\`\`json
-{
-  "list": [
-    {
-      "title": "Sub-point Title",
-      "content": "Clear explanation with examples (max 50 words)"
-    }
-  ]
-}
-\`\`\``;
+    private createPromptMessage(command: string, variables: object): ChatMessage[] {
+        return [
+            { role: 'system', content: this.getSystemMessage() },
+            { role: 'user', content: JSON.stringify(variables) + '\n\n' + command }
+        ];
     }
 
-    /**
-     * Creates a contextual expansion prompt with hierarchical awareness
-     * @param segment - The segment to expand
-     * @param originalQuery - Original search query
-     * @returns string - Contextual prompt
-     */
-    private createContextualExpansionPrompt(
-        segment: TextSegment,
-        originalQuery: string
-    ): string {
-        // For level 0 (initial search results), use simple expansion
-        if (segment.level === 0) {
-            return this.createExpansionPrompt(segment);
-        }
-
-        // Get all cached segments for context building
-        const allCachedSegments = cacheService.getAllCachedSegments();
-        const contextualPrompt = createContextualPrompt(segment, allCachedSegments, originalQuery);
-
-        return contextualPrompt.prompt;
-    }
-
-    /**
-     * Sends request with retry mechanism for JSON parsing failures
-     * @param messages - Chat messages array
-     * @param level - Hierarchical level for the segments
-     * @param parentId - ID of parent segment (null for root segments)
-     * @param attempt - Current attempt number (0-based)
-     * @param abortController - Optional AbortController for cancellation
-     * @returns Promise<TextSegment[]> - Array of text segments
-     */
-    private async requestWithRetry(messages: ChatMessage[], level: number, parentId: string | null = null, attempt: number = 0, abortController?: AbortController): Promise<TextSegment[]> {
+    private async requestWithRetry(messages: ChatMessage[], parentId: string | null = null, attempt: number = 0, abortController?: AbortController): Promise<TextSegment[]> {
         try {
             const response = await this.sendMessage(messages, abortController);
             // console.log(messages, response)
-            return this.parseSegmentsFromResponse(response, level, parentId);
+            return this.parseSegmentsFromResponse(response, parentId);
         } catch (error) {
             // Don't retry if the request was aborted
             if (error instanceof Error && error.message === 'Search was cancelled') {
@@ -346,7 +212,7 @@ Respond in JSON format:
                 };
 
                 const retryMessages = [...messages, errorMessage];
-                return this.requestWithRetry(retryMessages, level, parentId, attempt + 1, abortController);
+                return this.requestWithRetry(retryMessages, parentId, attempt + 1, abortController);
             } else {
                 console.error('Failed to get valid JSON response after 3 attempts');
                 throw new Error('Failed to get segments: AI service did not provide valid JSON format after 3 attempts');
@@ -357,11 +223,10 @@ Respond in JSON format:
     /**
      * Parses AI response into TextSegment array
      * @param response - Raw AI response text
-     * @param level - Hierarchical level for the segments
      * @param parentId - ID of parent segment (null for root segments)
      * @returns TextSegment[] - Parsed segments
      */
-    private parseSegmentsFromResponse(response: string, level: number, parentId: string | null = null): TextSegment[] {
+    private parseSegmentsFromResponse(response: string, parentId: string | null = null): TextSegment[] {
         // Extract JSON from response (handle markdown code blocks)
         let jsonStr = response.trim();
 
@@ -381,19 +246,13 @@ Respond in JSON format:
 
         const segments: TextSegment[] = [];
         for (const item of parsedResponse.list) {
-            // Handle both old format (string) and new format (object with title/content)
-            if (typeof item === 'string' && item.trim().length > 0) {
-                // Fallback for old format - use content as both title and content
-                const segment = createTextSegment(item.trim(), item.trim(), level, parentId);
-                segments.push(segment);
-            } else if (typeof item === 'object' && item.title && item.content) {
-                // New format with title and content
-                const segment = createTextSegment(
-                    item.title.trim(),
-                    item.content.trim(),
-                    level,
-                    parentId
-                );
+            if (typeof item === 'object' && item.title && item.content) {
+                const segment = {
+                    id: `segment_${uuid()}`,
+                    title: item.title.trim(),
+                    content: item.content.trim(),
+                    parentId,
+                }
                 segments.push(segment);
             }
         }

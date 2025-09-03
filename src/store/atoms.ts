@@ -1,6 +1,5 @@
 import { atom } from 'jotai';
 import { TextSegment, SearchState } from '../types';
-import { createInitialSearchState } from '../utils/segmentUtils';
 
 // Core query state atoms
 export const store = {
@@ -12,6 +11,10 @@ export const store = {
     searchControllerAtom: atom<AbortController | null>(null), // Atom for search cancellation
     expandingSegmentIdAtom: atom<string | null>(null), // Atom for tracking the expanding segment
     currentSearchIdAtom: atom<string | null>(null),
+    // Infinite scroll state
+    isLoadingMoreAtom: atom<boolean>(false), // Atom to track if more segments are being loaded
+    hasMoreSegmentsAtom: atom<boolean>(true), // Atom to track if there are more segments to load
+    maxSegmentsAtom: atom<number>(20), // Maximum number of segments to show initially
 }
 
 // Derived atoms for computed values
@@ -29,7 +32,7 @@ export const currentTitleAtom = atom((get) => {
         return searchQuery;
     }
 
-    return 'finger reader';
+    return 'Dots';
 });
 
 export const shouldShowBackArrowAtom = atom((get) => {
@@ -63,12 +66,13 @@ export const searchStateAtom = atom<SearchState>((get) => ({
 
 // Reset atoms action
 export const resetSearchStateAtom = atom(null, (_get, set) => {
-    const initialState = createInitialSearchState();
-    set(store.searchQueryAtom, initialState.searchQuery);
-    set(store.segmentsAtom, initialState.segments);
-    set(store.isSearchingAtom, initialState.isSearching);
-    set(store.errorAtom, initialState.error);
-    set(store.searchControllerAtom, initialState.searchController || null);
+    set(store.searchQueryAtom, '');
+    set(store.segmentsAtom, []);
+    set(store.isSearchingAtom, false);
+    set(store.errorAtom, null);
+    set(store.searchControllerAtom, null);
     set(store.currentSearchIdAtom, null);
     set(store.expandingSegmentIdAtom, null);
+    set(store.isLoadingMoreAtom, false);
+    set(store.hasMoreSegmentsAtom, true);
 });

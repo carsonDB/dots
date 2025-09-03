@@ -11,7 +11,7 @@ interface QueryHistoryItem {
 }
 
 class CacheService {
-    private readonly QUERY_HISTORY_KEY = 'finger_reader_query_history';
+    private readonly QUERY_HISTORY_KEY = 'query_history';
     private readonly MAX_QUERY_HISTORY = 100;
 
     /**

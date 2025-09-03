@@ -35,6 +35,10 @@ export const performQueryAtom = atom(
             set(store.isSearchingAtom, false);
             set(store.errorAtom, null);
             set(store.expandingSegmentIdAtom, null);
+            
+            // Reset infinite scroll state for existing queries
+            set(store.isLoadingMoreAtom, false);
+            set(store.hasMoreSegmentsAtom, true);
 
             return {
                 segments: existingQuery.segments,
@@ -72,8 +76,10 @@ export const performQueryAtom = atom(
                 set(store.isSearchingAtom, true);
                 set(store.searchControllerAtom, abortController);
 
-                // For root queries, reset segments
+                // For root queries, reset segments and infinite scroll state
                 set(store.segmentsAtom, []);
+                set(store.isLoadingMoreAtom, false);
+                set(store.hasMoreSegmentsAtom, true);
 
                 // Use search logic for text-based queries
                 newSegments = await aiService.generateSegments(query, abortController);
@@ -89,6 +95,13 @@ export const performQueryAtom = atom(
 
             set(store.segmentsAtom, newSegments);
             set(store.currentSearchIdAtom, queryId);
+
+            // Reset infinite scroll state for new queries
+            if (sourceSegment) {
+                // For segment expansion, reset infinite scroll
+                set(store.isLoadingMoreAtom, false);
+                set(store.hasMoreSegmentsAtom, true);
+            }
 
             // Only clear loading states if we were actually loading
             if (!usePreloaded) {
@@ -127,5 +140,63 @@ export const cancelSearchAtom = atom(
         set(store.errorAtom, null);
         set(store.searchControllerAtom, null);
         set(store.expandingSegmentIdAtom, null);
+        set(store.isLoadingMoreAtom, false);
+    }
+);
+
+// Load more segments action atom
+export const loadMoreSegmentsAtom = atom(
+    null,
+    async (get, set) => {
+        const isLoadingMore = get(store.isLoadingMoreAtom);
+        const hasMore = get(store.hasMoreSegmentsAtom);
+        const currentSegments = get(store.segmentsAtom);
+        const searchQuery = get(store.searchQueryAtom);
+
+        // Don't load if already loading or no more segments
+        if (isLoadingMore || !hasMore || !searchQuery) {
+            return;
+        }
+
+        // Limit maximum segments to prevent excessive loading
+        const maxSegments = get(store.maxSegmentsAtom);
+        if (currentSegments.length >= maxSegments) {
+            set(store.hasMoreSegmentsAtom, false);
+            return;
+        }
+
+        set(store.isLoadingMoreAtom, true);
+
+        try {
+            // Generate more segments based on current query
+            const abortController = new AbortController();
+            set(store.searchControllerAtom, abortController);
+
+            const newSegments = await aiService.extendMoreSegments(
+                searchQuery,
+                currentSegments,
+                abortController
+            );
+
+            if (newSegments.length > 0) {
+                // Append new segments to existing ones
+                set(store.segmentsAtom, [...currentSegments, ...newSegments]);
+            } else {
+                // No more segments available
+                set(store.hasMoreSegmentsAtom, false);
+            }
+
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to load more segments';
+            console.error('Load more segments failed:', errorMessage);
+            
+            // Don't show error for cancelled requests
+            if (!errorMessage.includes('cancelled')) {
+                set(store.errorAtom, errorMessage);
+            }
+        } finally {
+            set(store.isLoadingMoreAtom, false);
+            set(store.searchControllerAtom, null);
+        }
     }
 );

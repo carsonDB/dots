@@ -8,13 +8,13 @@ import type { TextSegment } from '../types';
 const CONTEXT_LEVEL_LIMIT = 4;
 
 /**
- * Contextual prompt with hierarchical information
+ * Contextual information for AI prompts
  */
-interface ContextualPrompt {
-    /** Combined prompt with context */
-    prompt: string;
+export interface ContextualInfo {
     /** Additional contextual information from hierarchy */
     contextualInformation: string;
+    /** Parent segments in the hierarchy */
+    parentSegments: TextSegment[];
 }
 
 /**
@@ -40,15 +40,7 @@ function getParentSegments(segment: TextSegment, allSegments: TextSegment[]): Te
 /**
  * Builds contextual information from the hierarchy (titles only)
  */
-function buildContextualInformation(
-    level: number,
-    parentSegments: TextSegment[],
-    originalQuery: string
-): string {
-    if (level === 0) {
-        return `Original search: "${originalQuery}"`;
-    }
-
+function buildContextualInformation(parentSegments: TextSegment[], originalQuery: string): string {
     let contextInfo = `Original search: "${originalQuery}"\n`;
 
     if (parentSegments.length > 0) {
@@ -62,40 +54,16 @@ function buildContextualInformation(
     return contextInfo.trim();
 }
 
-
-
 /**
- * Creates a contextual prompt with hierarchical information
+ * Creates contextual information for hierarchical AI expansions
  */
-export function createContextualPrompt(
+export function createContextualInfo(
     segment: TextSegment,
     allSegments: TextSegment[],
     originalQuery: string
-): ContextualPrompt {
+) {
     const parentSegments = getParentSegments(segment, allSegments);
-    const contextualInformation = buildContextualInformation(segment.level, parentSegments, originalQuery);
+    const contextualInformation = buildContextualInformation(parentSegments, originalQuery);
     
-    // Merge base prompt with context
-    const prompt = `Expand on: '${segment.title}' - '${segment.content}'. Provide 3-5 sub-points with simple explanations (max 50 words each). Use examples and step-by-step details.
-
-CONTEXT: ${contextualInformation}
-
-Please provide 3-5 sub-points that build naturally on this exploration path. Make sure your explanations are relevant to the context above and help the user dive deeper into this specific aspect of "${originalQuery}".
-
-Respond in JSON format:
-\`\`\`json
-{
-  "list": [
-    {
-      "title": "Sub-point Title",
-      "content": "Clear explanation with examples (max 50 words)"
-    }
-  ]
-}
-\`\`\``;
-
-    return {
-        prompt,
-        contextualInformation
-    };
+    return contextualInformation
 }
